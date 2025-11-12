@@ -7,7 +7,7 @@
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <style>
     :root{color-scheme:light dark}
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial,sans-serif;margin:0;display:grid;place-items:start center;padding:2rem}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial,sans-serif;margin:0;display:grid;place-items:start center;padding:2rem;gap:1rem}
     .card{width:min(860px,95vw);border:1px solid #ccc;border-radius:14px;padding:1rem 1.25rem;box-shadow:0 6px 24px rgba(0,0,0,.08);background:Canvas}
     h1{margin:.25rem 0 1rem 0;font-size:1.35rem}
     form{display:grid;gap:.75rem}
@@ -19,9 +19,61 @@
     .msg{margin-top:.5rem;font-size:.9rem}
     .err{color:#b91c1c}
     .ok{opacity:.7}
+    details.guideline{width:min(860px,95vw)}
+    details.guideline > summary{
+      list-style:none; cursor:pointer; display:flex; align-items:center; gap:.5rem;
+      font-weight:700; padding:.8rem 1rem; border:1px solid #ccc; border-radius:14px; box-shadow:0 6px 24px rgba(0,0,0,.08);
+      background:Canvas;
+    }
+    details.guideline[open] > summary{border-bottom-left-radius:0;border-bottom-right-radius:0}
+    .caret{width:1rem;height:1rem;transition:transform .2s ease}
+    details.guideline[open] .caret{transform:rotate(90deg)}
+    .guide-body{border:1px solid #ccc;border-top:none;border-bottom-left-radius:14px;border-bottom-right-radius:14px;padding:1rem;background:Canvas}
+    .guide-body p{margin:.4rem 0}
+    .guide-body a{color:inherit;text-decoration:underline}
+    .muted{opacity:.8}
+    ol{margin:.2rem 0 .2rem 1.2rem}
+    .coffee{
+      margin-top:1rem;text-align:center;
+    }
+    .coffee a{
+      display:inline-flex;align-items:center;gap:.5rem;
+      background:#ffdd00;color:#000;text-decoration:none;
+      font-weight:700;padding:.6rem 1.2rem;border-radius:10px;box-shadow:0 4px 8px rgba(0,0,0,.1);
+      transition:transform .15s ease,box-shadow .15s ease;
+    }
+    .coffee a:hover{transform:translateY(-2px);box-shadow:0 6px 12px rgba(0,0,0,.15)}
   </style>
 </head>
 <body>
+
+  <details class="guideline">
+    <summary>
+      <svg class="caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l8 7-8 7" fill="currentColor"/></svg>
+      Guideline
+    </summary>
+    <div class="guide-body">
+      <p>Dieses Tool generiert Ihnen einen Vorschlag für einen Kündigungsbrief wenn Sie Ihre Grundversicherung wechseln möchten.</p>
+      <p>Falls Sie Ihre Krankenkasse noch nicht gekündigt haben, können Sie sich auf
+        <a href="https://www.priminfo.admin.ch/de/praemien" target="_blank" rel="noopener">Priminfo</a> informieren.
+        Dieses <a href="https://github.com/rot8/KrankenKassenWechsel/blob/main/priminfo_guide.webm" target="_blank" rel="noopener">Video</a>
+        zeigt Ihnen, wie Sie auf der Seite navigieren.
+      </p>
+      <p class="muted">Alle Informationen stammen aus öffentlicher Hand und werden hier ohne Gewähr weitergegeben:</p>
+      <ol class="muted">
+        <li>Quelle Template:
+          <a href="https://www.priminfo.admin.ch/downloads/08_Kuendigung%20(Grundversicherung)_interaktiv_ACC_send.pdf" target="_blank" rel="noopener">priminfo.admin.ch – Kündigung (Grundversicherung)</a>
+        </li>
+        <li>Quelle Krankenkassenadressen:
+          <a href="https://www.priminfo.admin.ch/downloads/Verzeichnis%20zugelassene%20Krankenversicherer_Sept.%202025.pdf" target="_blank" rel="noopener">priminfo.admin.ch – Verzeichnis zugelassene Krankenversicherer</a>
+        </li>
+        <li>Quelle Krankenkassenvergleich:
+          <a href="https://www.priminfo.admin.ch/de/praemien" target="_blank" rel="noopener">priminfo.admin.ch – Prämien</a>
+        </li>
+      </ol>
+    </div>
+  </details>
+
   <div class="card">
     <h1>PDF Formular ausfüllen</h1>
     <form id="f">
@@ -60,6 +112,11 @@
       </div>
     </form>
     <div id="msg" class="msg ok"></div>
+    <div class="coffee">
+      <a href="https://buymeacoffee.com/janeinvielleicht" target="_blank" rel="noopener">
+        ☕ Buy me a coffee
+      </a>
+    </div>
   </div>
 
 <script>
@@ -121,7 +178,7 @@ async function generatePDF(e){
       ['Postleitzahl Ort', inputs.plzort],
       ['Postleitzahl Wohnort', inputs.plzort],
       ['Name Vorname', inputs.name && inputs.vorname ? inputs.name + ', ' + inputs.vorname : ''],
-      ['Ort, Datum', todayCH()]
+      ['Ort Datum', todayCH()]
     ];
 
     let filled = 0;
