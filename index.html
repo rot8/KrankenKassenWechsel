@@ -16,9 +16,27 @@
     .row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
     button{cursor:pointer;border:none;background:#2563eb;color:#fff;font-weight:700}
     button:disabled{opacity:.6;cursor:not-allowed}
-    .msg{margin-top:.5rem;font-size:.9rem}
-    .err{color:#b91c1c}
-    .ok{opacity:.7}
+    .msg{
+      margin-top:1rem;
+      padding:.75rem 1rem;
+      border-radius:10px;
+      font-weight:600;
+      text-align:center;
+      border:2px solid transparent;
+      transition:all .2s ease;
+    }
+    .msg.ok{
+      background:#ecfdf5;
+      color:#065f46;
+      border-color:#6ee7b7;
+      box-shadow:0 3px 8px rgba(6,95,70,0.15);
+    }
+    .msg.err{
+      background:#fef2f2;
+      color:#991b1b;
+      border-color:#fca5a5;
+      box-shadow:0 3px 8px rgba(153,27,27,0.15);
+    }
     details.guideline{width:min(860px,95vw)}
     details.guideline > summary{
       list-style:none; cursor:pointer; display:flex; align-items:center; gap:.5rem;
@@ -46,33 +64,38 @@
   </style>
 </head>
 <body>
+<details class="guideline">
+  <summary>
+    <svg class="caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l8 7-8 7" fill="currentColor"/></svg>
+    Guideline
+  </summary>
+  <div class="guide-body">
+    <p>Dieses Tool generiert Ihnen einen Vorschlag für einen Kündigungsbrief falls Sie Ihre Grundversicherung wechseln möchten.</p>
+    <p>Falls Sie Ihre Krankenkasse noch nicht gekündigt haben, können Sie sich auf
+      <a href="https://www.priminfo.admin.ch/de/praemien" target="_blank" rel="noopener">Priminfo</a> informieren.
+      Das folgende Video zeigt Ihnen, wie Sie auf der Seite navigieren:
+    </p>
 
-  <details class="guideline">
-    <summary>
-      <svg class="caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l8 7-8 7" fill="currentColor"/></svg>
-      Guideline
-    </summary>
-    <div class="guide-body">
-      <p>Dieses Tool generiert Ihnen einen Vorschlag für einen Kündigungsbrief wenn Sie Ihre Grundversicherung wechseln möchten.</p>
-      <p>Falls Sie Ihre Krankenkasse noch nicht gekündigt haben, können Sie sich auf
-        <a href="https://www.priminfo.admin.ch/de/praemien" target="_blank" rel="noopener">Priminfo</a> informieren.
-        Dieses <a href="https://github.com/rot8/KrankenKassenWechsel/blob/main/priminfo_guide.webm" target="_blank" rel="noopener">Video</a>
-        zeigt Ihnen, wie Sie auf der Seite navigieren.
-      </p>
-      <p class="muted">Alle Informationen stammen aus öffentlicher Hand und werden hier ohne Gewähr weitergegeben:</p>
-      <ol class="muted">
-        <li>Quelle Template:
-          <a href="https://www.priminfo.admin.ch/downloads/08_Kuendigung%20(Grundversicherung)_interaktiv_ACC_send.pdf" target="_blank" rel="noopener">priminfo.admin.ch – Kündigung (Grundversicherung)</a>
-        </li>
-        <li>Quelle Krankenkassenadressen:
-          <a href="https://www.priminfo.admin.ch/downloads/Verzeichnis%20zugelassene%20Krankenversicherer_Sept.%202025.pdf" target="_blank" rel="noopener">priminfo.admin.ch – Verzeichnis zugelassene Krankenversicherer</a>
-        </li>
-        <li>Quelle Krankenkassenvergleich:
-          <a href="https://www.priminfo.admin.ch/de/praemien" target="_blank" rel="noopener">priminfo.admin.ch – Prämien</a>
-        </li>
-      </ol>
-    </div>
-  </details>
+    <video controls preload="metadata" playsinline style="width:100%;border-radius:12px;margin:.5rem 0 0.75rem 0">
+      <source src="./priminfo_guide.webm" type="video/webm">
+      <source src="./priminfo_guide.mp4" type="video/mp4">
+      <a href="./priminfo_guide.webm">Download Video</a>
+    </video>
+
+    <p class="muted">Alle Informationen stammen aus öffentlicher Hand und werden hier ohne Gewähr weitergegeben:</p>
+    <ol class="muted">
+      <li>Quelle Template:
+        <a href="https://www.priminfo.admin.ch/downloads/08_Kuendigung%20(Grundversicherung)_interaktiv_ACC_send.pdf" target="_blank" rel="noopener">priminfo.admin.ch – Kündigung (Grundversicherung)</a>
+      </li>
+      <li>Quelle Krankenkassenadressen:
+        <a href="https://www.priminfo.admin.ch/downloads/Verzeichnis%20zugelassene%20Krankenversicherer_Sept.%202025.pdf" target="_blank" rel="noopener">priminfo.admin.ch – Verzeichnis zugelassene Krankenversicherer</a>
+      </li>
+      <li>Quelle Krankenkassenvergleich:
+        <a href="https://www.priminfo.admin.ch/de/praemien" target="_blank" rel="noopener">priminfo.admin.ch – Prämien</a>
+      </li>
+    </ol>
+  </div>
+</details>
 
   <div class="card">
     <h1>PDF Formular ausfüllen</h1>
@@ -123,7 +146,14 @@
 const csvUrl = './kk_addressen.csv';
 const pdfTemplateUrl = './grundversicherung_Kuendigung_template.pdf';
 const $ = id => document.getElementById(id);
-function setMsg(t,err){const m=$('msg'); if(!m){console[err?'error':'log'](t);return} m.textContent=t; m.className='msg '+(err?'err':'ok')}
+function setMsg(t,err){
+  const m = $('msg');
+  if(!m){console[err?'error':'log'](t);return;}
+  m.textContent = t;
+  m.className = 'msg ' + (err ? 'err' : 'ok');
+  m.style.display = 'block';
+  m.scrollIntoView({behavior:'smooth',block:'center'});
+}
 
 async function loadCSV(){
   try{
@@ -198,7 +228,7 @@ async function generatePDF(e){
     a.href = url; a.download = 'kuendigung.pdf';
     document.body.appendChild(a); a.click();
     setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 100);
-    setMsg('PDF erstellt');
+    setMsg('PDF Erstellt! Jetzt können Sie das noch ausdrucken, unterschreiben und (ggf. per Einschreiben) abschicken!');
   }catch(err){
     setMsg('Fehler beim Erstellen der PDF', true);
     console.error(err);
