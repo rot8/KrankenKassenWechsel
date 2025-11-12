@@ -64,95 +64,103 @@
     <div id="msg" class="msg ok"></div>
   </div>
 <script>
-const csvUrl='./kk_addressen.csv'
-const pdfTemplateUrl='./grundversicherung_Kuendigung_template.pdf'
-const $=id=>document.getElementById(id)
-function setMsg(t,err){const m=$('msg');m.textContent=t;m.className='msg '+(err?'err':'ok')}
+const csvUrl = './kk_addressen.csv';
+const pdfTemplateUrl = './grundversicherung_Kuendigung_template.pdf';
+const $ = id => document.getElementById(id);
+function setMsg(t,err){const m=$('msg'); if(!m){console[err?'error':'log'](t);return} m.textContent=t; m.className='msg '+(err?'err':'ok')}
 
 async function loadCSV(){
   try{
-    const res=await fetch(csvUrl,{cache:'no-cache'}); if(!res.ok){setMsg('CSV nicht gefunden',true);return}
-    const text=await res.text()
-    const lines=text.split(/\r?\n/).filter(l=>l.trim().length)
+    const res = await fetch(csvUrl,{cache:'no-cache'}); if(!res.ok){setMsg('CSV nicht gefunden',true);return}
+    const text = await res.text();
+    const lines = text.split(/\r?\n/).filter(l=>l.trim().length);
     if(!lines.length){setMsg('CSV ist leer',true);return}
-    const delim=lines[0].includes(';')?';':','
-    const header=lines[0].split(delim).map(h=>h.trim().toLowerCase())
-    const nameIdx=header.findIndex(h=>['name','krankenkasse','kasse'].includes(h))
+    const delim = lines[0].includes(';')?';':',';
+    const header = lines[0].split(delim).map(h=>h.trim().toLowerCase());
+    const nameIdx = header.findIndex(h=>['name','krankenkasse','kasse'].includes(h));
     if(nameIdx<0){setMsg('Spaltenkopf für Krankenkasse nicht gefunden',true);return}
-    const sel=$('kk')
+    const sel = $('kk');
     for(let i=1;i<lines.length;i++){
-      const cells=lines[i].split(delim).map(c=>c.trim())
-      const v=cells[nameIdx]
-      if(v){const o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o)}
+      const cells = lines[i].split(delim).map(c=>c.trim());
+      const v = cells[nameIdx];
+      if(v){ const o=document.createElement('option'); o.value=v; o.textContent=v; sel.appendChild(o); }
     }
-  }catch(e){setMsg('Fehler beim Laden der CSV',true);console.error(e)}
+  }catch(e){ setMsg('Fehler beim Laden der CSV',true); console.error(e) }
 }
 
-function findTextField(form, name){
-  try{ return form.getTextField(name) }catch(_){}
-  const nL = name.toLowerCase()
-  const cand = form.getFields().find(f => {
-    const nm = String(f.getName()).toLowerCase()
-    return nm===nL || nm.includes(nL)
-  })
-  if(!cand) return null
-  try{ return form.getTextField(String(cand.getName())) }catch(_){ return null }
+function findTextField(form, preferredNames){
+  // try exact names in order
+  for(const nm of preferredNames){
+    try{ return form.getTextField(nm) }catch(_){}
+  }
+  // fallback: fuzzy
+  const fields = form.getFields();
+  for(const nm of preferredNames){
+    const nL = nm.toLowerCase();
+    const cand = fields.find(f => String(f.getName()).toLowerCase().includes(nL));
+    if(cand){
+      try{ return form.getTextField(String(cand.getName())) }catch(_){}
+    }
+  }
+  return null;
 }
 
 async function generatePDF(e){
-  e.preventDefault(); $('gen').disabled=true
+  e.preventDefault(); $('gen').disabled = true;
   try{
-    const buf=await fetch(pdfTemplateUrl,{cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error('PDF nicht gefunden');return r.arrayBuffer()})
-    const pdfDoc=await PDFLib.PDFDocument.load(buf)
-    const form=pdfDoc.getForm()
+    const buf = await fetch(pdfTemplateUrl,{cache:'no-cache'}).then(r=>{if(!r.ok) throw new Error('PDF nicht gefunden'); return r.arrayBuffer()});
+    const pdfDoc = await PDFLib.PDFDocument.load(buf);
+    const form = pdfDoc.getForm();
 
-    const inputs={
-      versichert:$('vn').value.trim(),
-      kk:$('kk').value.trim(),
-      name:$('name').value.trim(),
-      vorname:$('vorname').value.trim(),
-      strasse:$('strasse').value.trim(),
-      plzort:$('plzort').value.trim()
+    const inputs = {
+      versichert: $('vn')?.value.trim() || '',
+      kk:         $('kk')?.value.trim() || '',
+      name:       $('name')?.value.trim() || '',
+      vorname:    $('vorname')?.value.trim() || '',
+      strasse:    $('strasse')?.value.trim() || '',
+      plzort:     $('plzort')?.value.trim() || ''
+    };
+
+    const mapping = [
+      { names: ['Versicherten Nummer'], value: inputs.versichert },
+      { names: ['Name der Krankenversicherung'], value: inputs.kk },
+      { names: ['Name'], value: inputs.name },
+      { names: ['Vorname'], value: inputs.vorname },
+      { names: ['Strasse, Nummer','Strasse Nummer'], value: inputs.strasse },
+      { names: ['Postleitzahl, Ort','Postleitzahl, Wohnort','PLZ Ort','PLZ/Ort'], value: inputs.plzort },
+      { names: ['Name, Vorname'], value: inputs.name && inputs.vorname ? inputs.name+', '+inputs.vorname : '' }
+    ];
+
+    let filled = 0;
+    for(const m of mapping){
+      if(!m.value) continue;
+      const tf = findTextField(form, m.names);
+      if(tf){ tf.setText(m.value); filled++; }
+      else { console.warn('Feld nicht gefunden:', m.names.join(' | ')); }
     }
 
-    const pairs = [
-      ['Versicherten Nummer', inputs.versichert],
-      ['Name der Krankenversicherung', inputs.kk],
-      ['Name', inputs.name],
-      ['Vorname', inputs.vorname],
-      ['Strasse, Nummer', inputs.strasse],
-      ['Postleitzahl, Ort', inputs.plzort],
-      ['Name, Vorname', inputs.name ? (inputs.name+', '+inputs.vorname) : '']
-    ]
-
-    let filled = 0
-    for(const [fieldName, value] of pairs){
-      if(!value) continue
-      const tf = findTextField(form, fieldName)
-      if(tf){ tf.setText(value); filled++ } else { console.warn('Feld nicht gefunden:', fieldName) }
-    }
-
-    if(filled===0){ setMsg('Keine Formularfelder gefunden. Prüfe, ob das PDF XFA ist.', true); return }
-
-    form.flatten()
-    const bytes=await pdfDoc.save()
-    const blob=new Blob([bytes],{type:'application/pdf'})
-    const url=URL.createObjectURL(blob)
-    const a=document.createElement('a')
-    a.href=url
-    a.download=($('filename').value.trim()||'kuendigung.pdf').replace(/\s+/g,'_')
-    a.style.display='none'
-    document.body.appendChild(a)
-    a.click()
-    setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},100)
-    setMsg('PDF erstellt')
-  }catch(err){ setMsg('Fehler beim Erstellen der PDF',true); console.error(err) }
-  finally{ $('gen').disabled=false }
+    form.flatten();
+    const bytes = await pdfDoc.save();
+    const blob  = new Blob([bytes], { type: 'application/pdf' });
+    const url   = URL.createObjectURL(blob);
+    const a     = document.createElement('a');
+    const fnEl  = $('filename');
+    const fnVal = (fnEl && fnEl.value ? fnEl.value.trim() : 'kuendigung.pdf').replace(/\s+/g,'_');
+    a.href = url; a.download = fnVal || 'kuendigung.pdf';
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 100);
+    setMsg('PDF erstellt');
+  }catch(err){
+    setMsg('Fehler beim Erstellen der PDF', true);
+    console.error(err);
+  }finally{
+    $('gen').disabled = false;
+  }
 }
 
-if(location.hostname.includes('github.com')) setMsg('Bitte über GitHub Pages öffnen (Settings → Pages).',true)
-loadCSV()
-$('f').addEventListener('submit',generatePDF)
+if(location.hostname.includes('github.com')) setMsg('Bitte über GitHub Pages öffnen (Settings → Pages).',true);
+loadCSV();
+$('f').addEventListener('submit', generatePDF);
 </script>
 </body>
 </html>
