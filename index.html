@@ -55,14 +55,13 @@
           <input id="plzort" required />
         </div>
       </div>
-      <div class="row">
-        <div style="display:flex;align-items:end;justify-content:end">
-          <button id="gen" type="submit">PDF erstellen</button>
-        </div>
+      <div style="display:flex;align-items:end;justify-content:end">
+        <button id="gen" type="submit">PDF erstellen</button>
       </div>
     </form>
     <div id="msg" class="msg ok"></div>
   </div>
+
 <script>
 const csvUrl = './kk_addressen.csv';
 const pdfTemplateUrl = './grundversicherung_Kuendigung_template.pdf';
@@ -88,27 +87,18 @@ async function loadCSV(){
   }catch(e){ setMsg('Fehler beim Laden der CSV',true); console.error(e) }
 }
 
-function findTextField(form, preferredNames){
-  // try exact names in order
-  for(const nm of preferredNames){
-    try{ return form.getTextField(nm) }catch(_){}
-  }
-  // fallback: fuzzy
-  const fields = form.getFields();
-  for(const nm of preferredNames){
-    const nL = nm.toLowerCase();
-    const cand = fields.find(f => String(f.getName()).toLowerCase().includes(nL));
-    if(cand){
-      try{ return form.getTextField(String(cand.getName())) }catch(_){}
-    }
-  }
-  return null;
+function todayCH(){
+  const d = new Date();
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const yyyy = d.getFullYear();
+  return `${dd}.${mm}.${yyyy}`;
 }
 
 async function generatePDF(e){
   e.preventDefault(); $('gen').disabled = true;
   try{
-    const buf = await fetch(pdfTemplateUrl,{cache:'no-cache'}).then(r=>{if(!r.ok) throw new Error('PDF nicht gefunden'); return r.arrayBuffer()});
+    const buf = await fetch(pdfTemplateUrl,{cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error('PDF nicht gefunden');return r.arrayBuffer()});
     const pdfDoc = await PDFLib.PDFDocument.load(buf);
     const form = pdfDoc.getForm();
 
@@ -121,32 +111,34 @@ async function generatePDF(e){
       plzort:     $('plzort')?.value.trim() || ''
     };
 
-    const mapping = [
-      { names: ['Versicherten Nummer'], value: inputs.versichert },
-      { names: ['Name der Krankenversicherung'], value: inputs.kk },
-      { names: ['Name'], value: inputs.name },
-      { names: ['Vorname'], value: inputs.vorname },
-      { names: ['Strasse, Nummer','Strasse Nummer'], value: inputs.strasse },
-      { names: ['Postleitzahl, Ort','Postleitzahl, Wohnort','PLZ Ort','PLZ/Ort'], value: inputs.plzort },
-      { names: ['Name, Vorname'], value: inputs.name && inputs.vorname ? inputs.name+', '+inputs.vorname : '' }
+    const pairsExact = [
+      ['Versicherten Nummer', inputs.versichert],
+      ['Name der Krankenversicherung', inputs.kk],
+      ['Name', inputs.name],
+      ['Vorname', inputs.vorname],
+      ['Strasse Nummer', inputs.strasse],
+      ['Strasse Nummer_2', inputs.strasse],
+      ['Postleitzahl Ort', inputs.plzort],
+      ['Postleitzahl Wohnort', inputs.plzort],
+      ['Name Vorname', inputs.name && inputs.vorname ? inputs.name + ', ' + inputs.vorname : ''],
+      ['Ort, Datum', todayCH()]
     ];
 
     let filled = 0;
-    for(const m of mapping){
-      if(!m.value) continue;
-      const tf = findTextField(form, m.names);
-      if(tf){ tf.setText(m.value); filled++; }
-      else { console.warn('Feld nicht gefunden:', m.names.join(' | ')); }
+    for(const [fieldName, value] of pairsExact){
+      if(!value) continue;
+      try{ form.getTextField(fieldName).setText(value); filled++; }
+      catch(_){ console.warn('Feld nicht gefunden:', fieldName); }
     }
+
+    if(filled===0){ setMsg('Keine Formularfelder gefunden. Ist das PDF evtl. XFA?', true); return }
 
     form.flatten();
     const bytes = await pdfDoc.save();
     const blob  = new Blob([bytes], { type: 'application/pdf' });
     const url   = URL.createObjectURL(blob);
     const a     = document.createElement('a');
-    const fnEl  = $('filename');
-    const fnVal = (fnEl && fnEl.value ? fnEl.value.trim() : 'kuendigung.pdf').replace(/\s+/g,'_');
-    a.href = url; a.download = fnVal || 'kuendigung.pdf';
+    a.href = url; a.download = 'kuendigung.pdf';
     document.body.appendChild(a); a.click();
     setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 100);
     setMsg('PDF erstellt');
