@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PDF Formular ausfüllen</title>
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <style>
+    :root{color-scheme:light dark}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial,sans-serif;margin:0;display:grid;place-items:start center;padding:2rem}
+    .card{width:min(860px,95vw);border:1px solid #ccc;border-radius:14px;padding:1rem 1.25rem;box-shadow:0 6px 24px rgba(0,0,0,.08);background:Canvas}
+    h1{margin:.25rem 0 1rem 0;font-size:1.35rem}
+    form{display:grid;gap:.75rem}
+    label{font-weight:600}
+    input,select,button{font:inherit;padding:.6rem .7rem;border-radius:10px;border:1px solid #bbb;background:Canvas}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+    button{cursor:pointer;border:none;background:#2563eb;color:#fff;font-weight:700}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    footer{opacity:.7;margin-top:.5rem;font-size:.9rem}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>PDF Formular ausfüllen</h1>
+    <form id="f">
+      <div class="row">
+        <div>
+          <label for="vn">Versicherten Nummer</label>
+          <input id="vn" required />
+        </div>
+        <div>
+          <label for="kk">Krankenkasse</label>
+          <select id="kk" required><option value="" disabled selected>Bitte wählen…</option></select>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="name">Name</label>
+          <input id="name" required />
+        </div>
+        <div>
+          <label for="vorname">Vorname</label>
+          <input id="vorname" required />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="strasse">Strasse, Nummer</label>
+          <input id="strasse" required />
+        </div>
+        <div>
+          <label for="plzort">Postleitzahl, Wohnort</label>
+          <input id="plzort" required />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="filename">Dateiname</label>
+          <input id="filename" placeholder="kuendigung.pdf" />
+        </div>
+        <div style="display:flex;align-items:end;justify-content:end">
+          <button id="gen" type="submit">PDF erstellen</button>
+        </div>
+      </div>
+    </form>
+    <footer>Die Dateien <code>08_Kuendigung (Grundversicherung)_interaktiv_ACC_send.pdf</code> und <code>kk_addressen.csv</code> liegen im gleichen Ordner.</footer>
+  </div>
+<script>
+const csvUrl = './kk_addressen.csv'
+const pdfTemplateUrl = './08_Kuendigung (Grundversicherung)_interaktiv_ACC_send.pdf'
+const $ = (id)=>document.getElementById(id)
+const state={csvRows:[],csvHeader:[],nameCol:-1}
+async function loadCSV(){
+  const res = await fetch(csvUrl)
+  if(!res.ok) return
+  const text = await res.text()
+  const lines = text.split(/\r?\n/).filter(l=>l.trim().length)
+  if(!lines.length) return
+  const delim = lines[0].includes(';')?';':','
+  state.csvHeader = lines[0].split(delim).map(h=>h.trim())
+  state.nameCol = state.csvHeader.findIndex(h=>h.toLowerCase()==='name')
+  for(let i=1;i<lines.length;i++){
+    const cells = lines[i].split(delim).map(c=>c.trim())
+    if(state.nameCol>=0 && cells[state.nameCol]) state.csvRows.push(cells)
+  }
+  const sel = $('kk')
+  state.csvRows.forEach((row)=>{
+    const opt=document.createElement('option')
+    opt.value=row[state.nameCol]
+    opt.textContent=row[state.nameCol]
+    sel.appendChild(opt)
+  })
+}
+function findField(form,nameCandidates){
+  const fields=form.getFields()
+  const lcNames=fields.map(f=>[f, String(f.getName())])
+  for(const n of nameCandidates){
+    const lc=n.toLowerCase()
+    for(const [f,s] of lcNames){
+      const t=String(s).toLowerCase()
+      if(t===lc||t.includes(lc)) return f
+    }
+  }
+  return null
+}
+async function generatePDF(e){
+  e.preventDefault()
+  $('gen').disabled=true
+  const buf = await fetch(pdfTemplateUrl).then(r=>r.arrayBuffer())
+  const pdfDoc = await PDFLib.PDFDocument.load(buf)
+  const form = pdfDoc.getForm()
+  const inputs={
+    versichert: $('vn').value.trim(),
+    kk: $('kk').value.trim(),
+    name: $('name').value.trim(),
+    vorname: $('vorname').value.trim(),
+    strasse: $('strasse').value.trim(),
+    plzort: $('plzort').value.trim()
+  }
+  const map=[
+    {val:inputs.versichert, keys:['Versicherten Nummer','Versichertenr','Versicherungsnummer']},
+    {val:inputs.kk, keys:['Name der Krankenversicherung','Krankenversicherung','Krankenkasse']},
+    {val:inputs.name, keys:['Name','Name:']},
+    {val:inputs.vorname, keys:['Vorname','Vorname:']},
+    {val:inputs.strasse, keys:['Strasse Nummer','Strasse, Nummer','Strasse Nummer_2']},
+    {val:inputs.plzort, keys:['Postleitzahl Wohnort','Postleitzahl Ort','PLZ Ort']},
+    {val:inputs.name+' '+inputs.vorname, keys:['Name Vorname']}
+  ]
+  for(const m of map){
+    if(!m.val) continue
+    const f=findField(form,m.keys)
+    if(f&&f.setText) f.setText(m.val)
+  }
+  form.flatten()
+  const pdfBytes = await pdfDoc.save()
+  const blob = new Blob([pdfBytes],{type:'application/pdf'})
+  const a=document.createElement('a')
+  a.href=URL.createObjectURL(blob)
+  a.download=($('filename').value.trim()||'kuendigung.pdf').replace(/\s+/g,'_')
+  document.body.appendChild(a);a.click();a.remove()
+  $('gen').disabled=false
+}
+loadCSV()
+$('f').addEventListener('submit',generatePDF)
+</script>
+</body>
+</html>
