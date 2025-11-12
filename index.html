@@ -56,20 +56,15 @@
         </div>
       </div>
       <div class="row">
-        <div>
-          <label for="filename">Dateiname</label>
-          <input id="filename" placeholder="kuendigung.pdf" />
-        </div>
         <div style="display:flex;align-items:end;justify-content:end">
           <button id="gen" type="submit">PDF erstellen</button>
         </div>
       </div>
     </form>
-    <div id="msg" class="msg ok">Die Dateien <code>08_Kuendigung (Grundversicherung)_interaktiv_ACC_send.pdf</code> und <code>kk_addressen.csv</code> liegen im gleichen Ordner.</div>
   </div>
 <script>
 const csvUrl = encodeURI('./kk_addressen.csv');
-const pdfTemplateUrl = encodeURI('./08_Kuendigung (Grundversicherung)_interaktiv_ACC_send.pdf');
+const pdfTemplateUrl = encodeURI('./grundversicherung_Kuendigung_template.pdf');
 const $ = (id)=>document.getElementById(id);
 const state={csvRows:[],csvHeader:[],nameCol:-1};
 function setMsg(t,err){const m=$('msg');m.textContent=t;m.className='msg '+(err?'err':'ok');}
