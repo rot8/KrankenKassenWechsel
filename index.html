@@ -56,10 +56,6 @@
         </div>
       </div>
       <div class="row">
-        <div>
-          <label for="filename">Dateiname</label>
-          <input id="filename" placeholder="kuendigung.pdf" />
-        </div>
         <div style="display:flex;align-items:end;justify-content:end">
           <button id="gen" type="submit">PDF erstellen</button>
         </div>
@@ -72,6 +68,7 @@ const csvUrl='./kk_addressen.csv'
 const pdfTemplateUrl='./grundversicherung_Kuendigung_template.pdf'
 const $=id=>document.getElementById(id)
 function setMsg(t,err){const m=$('msg');m.textContent=t;m.className='msg '+(err?'err':'ok')}
+
 async function loadCSV(){
   try{
     const res=await fetch(csvUrl,{cache:'no-cache'}); if(!res.ok){setMsg('CSV nicht gefunden',true);return}
@@ -90,12 +87,25 @@ async function loadCSV(){
     }
   }catch(e){setMsg('Fehler beim Laden der CSV',true);console.error(e)}
 }
+
+function findTextField(form, name){
+  try{ return form.getTextField(name) }catch(_){}
+  const nL = name.toLowerCase()
+  const cand = form.getFields().find(f => {
+    const nm = String(f.getName()).toLowerCase()
+    return nm===nL || nm.includes(nL)
+  })
+  if(!cand) return null
+  try{ return form.getTextField(String(cand.getName())) }catch(_){ return null }
+}
+
 async function generatePDF(e){
   e.preventDefault(); $('gen').disabled=true
   try{
     const buf=await fetch(pdfTemplateUrl,{cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error('PDF nicht gefunden');return r.arrayBuffer()})
     const pdfDoc=await PDFLib.PDFDocument.load(buf)
     const form=pdfDoc.getForm()
+
     const inputs={
       versichert:$('vn').value.trim(),
       kk:$('kk').value.trim(),
@@ -104,23 +114,42 @@ async function generatePDF(e){
       strasse:$('strasse').value.trim(),
       plzort:$('plzort').value.trim()
     }
-    form.getTextField('Versicherten Nummer').setText(inputs.versichert)
-    form.getTextField('Name der Krankenversicherung').setText(inputs.kk)
-    form.getTextField('Name').setText(inputs.name)
-    form.getTextField('Vorname').setText(inputs.vorname)
-    form.getTextField('Strasse, Nummer').setText(inputs.strasse)
-    form.getTextField('Postleitzahl, Ort').setText(inputs.plzort)
-    try{form.getTextField('Name, Vorname').setText(inputs.name+', '+inputs.vorname)}catch(_){}
+
+    const pairs = [
+      ['Versicherten Nummer', inputs.versichert],
+      ['Name der Krankenversicherung', inputs.kk],
+      ['Name', inputs.name],
+      ['Vorname', inputs.vorname],
+      ['Strasse, Nummer', inputs.strasse],
+      ['Postleitzahl, Ort', inputs.plzort],
+      ['Name, Vorname', inputs.name ? (inputs.name+', '+inputs.vorname) : '']
+    ]
+
+    let filled = 0
+    for(const [fieldName, value] of pairs){
+      if(!value) continue
+      const tf = findTextField(form, fieldName)
+      if(tf){ tf.setText(value); filled++ } else { console.warn('Feld nicht gefunden:', fieldName) }
+    }
+
+    if(filled===0){ setMsg('Keine Formularfelder gefunden. Prüfe, ob das PDF XFA ist.', true); return }
+
     form.flatten()
     const bytes=await pdfDoc.save()
+    const blob=new Blob([bytes],{type:'application/pdf'})
+    const url=URL.createObjectURL(blob)
     const a=document.createElement('a')
-    a.href=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}))
+    a.href=url
     a.download=($('filename').value.trim()||'kuendigung.pdf').replace(/\s+/g,'_')
-    document.body.appendChild(a);a.click();a.remove()
+    a.style.display='none'
+    document.body.appendChild(a)
+    a.click()
+    setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},100)
     setMsg('PDF erstellt')
-  }catch(err){setMsg('Fehler beim Erstellen der PDF',true);console.error(err)}
-  finally{$('gen').disabled=false}
+  }catch(err){ setMsg('Fehler beim Erstellen der PDF',true); console.error(err) }
+  finally{ $('gen').disabled=false }
 }
+
 if(location.hostname.includes('github.com')) setMsg('Bitte über GitHub Pages öffnen (Settings → Pages).',true)
 loadCSV()
 $('f').addEventListener('submit',generatePDF)
